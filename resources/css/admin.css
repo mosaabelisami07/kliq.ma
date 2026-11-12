@@ -1,0 +1,239 @@
+@import "tailwindcss";
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../views/admin';
+@source '../views/components/admin';
+@source '../views/components/layouts/admin.blade.php';
+
+@theme {
+    --font-sans: var(--kliq-sans), ui-sans-serif, system-ui, sans-serif;
+    --font-display: var(--kliq-display), ui-sans-serif, system-ui, sans-serif;
+
+    --color-orange: #F36B21;
+    --color-orange-deep: #C2410C;
+    --color-cream: #FFF8F4;
+    --color-ink: #171717;
+    --color-muted: #625C57;
+    --color-line: rgb(23 23 23 / 0.1);
+}
+
+@layer base {
+    body {
+        background: var(--color-cream);
+        color: var(--color-ink);
+    }
+
+    :focus-visible {
+        outline: 2px solid var(--color-orange);
+        outline-offset: 2px;
+    }
+
+    ::selection {
+        background: var(--color-orange);
+        color: #000;
+    }
+}
+
+@layer components {
+    .a-card {
+        border: 1px solid var(--color-line);
+        border-radius: 1.25rem;
+        background: #fff;
+        box-shadow: 0 1px 2px rgb(23 23 23 / 0.04);
+    }
+
+    .a-input {
+        display: block;
+        width: 100%;
+        margin-top: 0.35rem;
+        padding: 0.6rem 0.85rem;
+        border: 1px solid rgb(23 23 23 / 0.15);
+        border-radius: 0.75rem;
+        background: #fff;
+        font-size: 0.925rem;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .a-input:focus {
+        outline: none;
+        border-color: var(--color-orange);
+        box-shadow: 0 0 0 3px rgb(243 107 33 / 0.18);
+    }
+
+    .a-input[aria-invalid=true] {
+        border-color: #D92D20;
+    }
+
+    select.a-input {
+        appearance: none;
+        padding-inline-end: 2.25rem;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-size: 1rem;
+        background-position: right 0.75rem center;
+    }
+
+    .a-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .a-hint {
+        margin-top: 0.3rem;
+        font-size: 0.78rem;
+        color: var(--color-muted);
+    }
+
+    .a-error {
+        margin-top: 0.3rem;
+        font-size: 0.8rem;
+        color: #B42318;
+    }
+
+    .a-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.45rem;
+        min-height: 2.5rem;
+        padding-inline: 1rem;
+        border-radius: 999px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        white-space: nowrap;
+        transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+        cursor: pointer;
+    }
+
+    .a-btn--primary { background: var(--color-orange); color: #000; }
+    .a-btn--primary:hover { background: var(--color-ink); color: #fff; }
+    .a-btn--dark { background: var(--color-ink); color: #fff; }
+    .a-btn--dark:hover { background: var(--color-orange); color: #000; }
+    .a-btn--ghost { border: 1px solid rgb(23 23 23 / 0.15); background: #fff; }
+    .a-btn--ghost:hover { border-color: var(--color-ink); }
+    .a-btn--danger { border: 1px solid #FECDCA; background: #FEF3F2; color: #B42318; }
+    .a-btn--danger:hover { background: #B42318; color: #fff; }
+    .a-btn--sm { min-height: 2rem; padding-inline: 0.75rem; font-size: 0.8rem; }
+    .a-btn--icon { width: 2.1rem; min-height: 2.1rem; padding: 0; }
+
+    .a-nav-link {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.6rem 0.85rem;
+        border-radius: 0.8rem;
+        color: rgb(255 255 255 / 0.7);
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .a-nav-link:hover { background: rgb(255 255 255 / 0.06); color: #fff; }
+    .a-nav-link.is-active { background: var(--color-orange); color: #000; }
+
+    .a-table {
+        width: 100%;
+        font-size: 0.875rem;
+    }
+
+    .a-table th {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--color-line);
+        color: var(--color-muted);
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-align: start;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .a-table td {
+        padding: 0.85rem 1rem;
+        border-bottom: 1px solid var(--color-line);
+        vertical-align: middle;
+    }
+
+    .a-table tbody tr:last-child td { border-bottom: 0; }
+    .a-table tbody tr:hover { background: rgb(255 248 244 / 0.7); }
+
+    .lang-tab {
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        color: var(--color-muted);
+        font-size: 0.72rem;
+        font-weight: 700;
+    }
+
+    .lang-tab[aria-selected=true] {
+        background: var(--color-ink);
+        color: #fff;
+    }
+
+    .lang-tab.has-value::after {
+        content: "•";
+        margin-inline-start: 0.2rem;
+        color: var(--color-orange);
+    }
+
+    .switch {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    .switch input { position: absolute; opacity: 0; }
+
+    .switch span::before {
+        content: "";
+        display: inline-block;
+        width: 2.4rem;
+        height: 1.4rem;
+        margin-inline-end: 0.6rem;
+        border-radius: 999px;
+        background: rgb(23 23 23 / 0.15);
+        vertical-align: middle;
+        transition: background-color 0.2s ease;
+    }
+
+    .switch span::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 0.2rem;
+        width: 1rem;
+        height: 1rem;
+        margin-top: -0.5rem;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+        transition: translate 0.2s ease;
+    }
+
+    .switch input:checked + span::before { background: var(--color-orange); }
+    .switch input:checked + span::after { translate: 1rem 0; }
+    .switch input:focus-visible + span::before { outline: 2px solid var(--color-orange); outline-offset: 2px; }
+
+    dialog.a-dialog::backdrop {
+        background: rgb(23 23 23 / 0.5);
+        backdrop-filter: blur(2px);
+    }
+}
+
+html.sidebar-open {
+    overflow: hidden;
+}
+
+@media (max-width: 1023px) {
+    .a-sidebar {
+        translate: -100% 0;
+        transition: translate 0.3s ease;
+    }
+
+    html.sidebar-open .a-sidebar {
+        translate: 0 0;
+    }
+}
