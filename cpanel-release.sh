@@ -24,11 +24,7 @@ if [[ -f "$private/live-commit" && -f "$web/index.php" ]] && grep -Fxq "$commit"
 fi
 
 php=/opt/cpanel/ea-php84/root/usr/bin/php
-uapi=/usr/local/cpanel/bin/uapi
 "$php" -r 'if (PHP_VERSION_ID < 80401 || !extension_loaded("pdo_mysql")) { exit(1); } echo "PHP ", PHP_VERSION, PHP_EOL;'
-if [[ ! -x "$uapi" ]]; then
-    uapi=$(command -v uapi)
-fi
 
 release=
 stage=$(mktemp -d "$private/publish.XXXXXXXX")
@@ -97,67 +93,15 @@ printf '%s  %s\n' 85282fffe388ae4965907a0d51816aca8631268ebe5633d20e7908fb59bdd6
 tar -xzf "$stage/build-assets.tar.gz" -C "$release/public"
 [[ -s public/build/manifest.json && -s public/build/fonts-manifest.json ]]
 
-mysql_api() {
-    result=$("$uapi" --output=json Mysql "$@")
-    if ! printf '%s' "$result" | "$php" -r '$r = json_decode(stream_get_contents(STDIN), true); exit(($r["result"]["status"] ?? 0) == 1 ? 0 : 1);'; then
-        printf 'cPanel database action %s failed.\n' "$1" >&2
-        return 1
-    fi
-    printf '%s\n' "$result"
-}
-has_record() {
-    "$php" -r '$r = json_decode(stream_get_contents(STDIN), true); foreach (($r["result"]["data"] ?? []) as $row) { if (($row[$argv[1]] ?? null) === $argv[2]) { exit(0); } } exit(1);' "$1" "$2"
-}
-
-db="$(id -un)_kliqsite"
-database_list=$(mysql_api list_databases)
-user_list=$(mysql_api list_users)
-if [[ ! -f "$private/.env" ]]; then
-    if has_record database "$db" <<<"$database_list" || has_record user "$db" <<<"$user_list"; then
-        printf 'A database or database user with the release name already exists.\n' >&2
-        exit 1
-    fi
-    app_key=$(openssl rand -base64 32)
-    db_password=$(openssl rand -hex 32)
-    env_temp=$(mktemp "$private/env.XXXXXXXX")
-    cat >"$env_temp" <<ENV
-APP_NAME=KLIQ
-APP_ENV=production
-APP_KEY=base64:$app_key
-APP_DEBUG=false
-APP_URL=$origin
-APP_LOCALE=en
-APP_FALLBACK_LOCALE=en
-LOG_CHANNEL=daily
-DB_CONNECTION=mysql
-DB_HOST=localhost
-DB_PORT=3306
-DB_DATABASE=$db
-DB_USERNAME=$db
-DB_PASSWORD=$db_password
-SESSION_DRIVER=database
-SESSION_SECURE_COOKIE=true
-CACHE_STORE=database
-QUEUE_CONNECTION=database
-MAIL_MAILER=log
-MEDIA_DISK=public
-ENV
-    mv -- "$env_temp" "$private/.env"
+env_file="$private/application.env"
+if [[ ! -s "$env_file" || -L "$env_file" ]]; then
+    printf 'The private cPanel database configuration is missing.\n' >&2
+    exit 1
 fi
-db_password=$(sed -n 's/^DB_PASSWORD=//p' "$private/.env")
-[[ "$db_password" =~ ^[0-9a-f]{64}$ ]]
-printf 'Initializing the dedicated KLIQ database.\n'
-if ! has_record database "$db" <<<"$database_list"; then
-    mysql_api create_database name="$db" >/dev/null
-fi
-if ! has_record user "$db" <<<"$user_list"; then
-    mysql_api create_user name="$db" password="$db_password" >/dev/null
-fi
-unset db_password app_key
-mysql_api set_privileges_on_database user="$db" database="$db" privileges='ALL PRIVILEGES' >/dev/null
-
+chmod 600 "$env_file"
+printf 'Using the dedicated database configured in cPanel.\n'
 if [[ ! -L .env ]]; then
-    ln -s "$private/.env" .env
+    ln -s "$env_file" .env
 fi
 if [[ ! -L storage/app/public ]]; then
     mv storage/app/public storage/app/public-template
