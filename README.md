@@ -146,3 +146,4 @@ After any later `.env` change, run `php artisan optimize` again.
 | Styles / scripts | `resources/css/app.css` + `resources/js/app.js` (site), `resources/css/admin.css` + `resources/js/admin.js` (dashboard) |
 # kliq.ma
 # kliq.ma
+# kliq.ma
