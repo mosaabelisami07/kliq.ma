@@ -66,10 +66,10 @@ fetch() {
 
 if [[ ! -f "$tools/composer.phar" ]]; then
     printf 'Installing Composer in the hosting account.\n'
-    fetch -o "$stage/composer-setup.php" https://getcomposer.org/installer
-    installer_hash=$(fetch https://composer.github.io/installer.sig)
-    printf '%s  %s\n' "$installer_hash" "$stage/composer-setup.php" | sha384sum --check --status
-    "$php" "$stage/composer-setup.php" --install-dir="$tools" --filename=composer.phar --quiet
+    fetch -o "$stage/composer.phar" https://getcomposer.org/download/2.11.2/composer.phar
+    printf '%s  %s\n' dd158c0afd41d15fac89e1b4e47b5d42911fe316c3687cd5edac98319b25d028 "$stage/composer.phar" |
+        sha256sum --check --status
+    mv -- "$stage/composer.phar" "$tools/composer.phar"
 fi
 printf 'Installing locked PHP dependencies.\n'
 "$php" "$tools/composer.phar" install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-progress
