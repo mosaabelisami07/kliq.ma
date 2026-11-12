@@ -101,8 +101,8 @@ if ! node_works; then
     export PATH="$tools/$node_dist/bin:$PATH"
 fi
 printf 'Building the production assets with Node %s.\n' "$(node --version)"
-npm ci --ignore-scripts --no-audit --no-fund
-NODE_USE_ENV_PROXY=1 npm run build
+npm ci --prefer-offline --ignore-scripts --no-audit --no-fund
+RAYON_NUM_THREADS=1 NODE_USE_ENV_PROXY=1 npm run build
 [[ -s public/build/manifest.json && -s public/build/fonts-manifest.json ]]
 
 mysql_api() {
