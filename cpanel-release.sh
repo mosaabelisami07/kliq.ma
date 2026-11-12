@@ -30,7 +30,7 @@ if [[ ! -x "$uapi" ]]; then
     uapi=$(command -v uapi)
 fi
 
-release=$(mktemp -d "$site/releases/0b31c50.XXXXXXXX")
+release=
 stage=$(mktemp -d "$private/publish.XXXXXXXX")
 publish_started=0
 published=0
@@ -57,8 +57,21 @@ rollback() {
 }
 trap rollback EXIT
 
-git archive "$commit" app artisan bootstrap composer.json composer.lock config database lang package.json package-lock.json public resources routes storage vite.config.js .npmrc |
-    tar -x -C "$release"
+for staged in "$site/releases/0b31c50."*; do
+    if [[ -s "$staged/vendor/autoload.php" && -f "$staged/composer.lock" ]]; then
+        release=$staged
+    fi
+done
+
+if [[ -n "$release" ]]; then
+    git show "$commit:composer.lock" | cmp -s "$release/composer.lock" -
+    git show "$commit:package-lock.json" | cmp -s "$release/package-lock.json" -
+    printf 'Reusing the staged PHP release.\n'
+else
+    release=$(mktemp -d "$site/releases/0b31c50.XXXXXXXX")
+    git archive "$commit" app artisan bootstrap composer.json composer.lock config database lang package.json package-lock.json public resources routes storage vite.config.js .npmrc |
+        tar -x -C "$release"
+fi
 cd "$release"
 fetch() {
     curl --fail --silent --show-error --location --retry 2 --connect-timeout 12 --max-time 120 "$@"
@@ -71,38 +84,17 @@ if [[ ! -f "$tools/composer.phar" ]]; then
         sha256sum --check --status
     mv -- "$stage/composer.phar" "$tools/composer.phar"
 fi
-printf 'Installing locked PHP dependencies.\n'
-"$php" "$tools/composer.phar" install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-progress
+if [[ ! -s vendor/autoload.php ]]; then
+    printf 'Installing locked PHP dependencies.\n'
+    "$php" "$tools/composer.phar" install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-progress
+fi
 "$php" "$tools/composer.phar" check-platform-reqs --no-dev --no-interaction
 
-node_works() {
-    command -v npm >/dev/null && node -e 'const [major,minor] = process.versions.node.split(".").map(Number); process.exit(major >= 24 || major === 22 && minor >= 12 ? 0 : 1)' 2>/dev/null
-}
-if ! node_works; then
-    for node_bin in /opt/alt/alt-nodejs24/root/usr/bin /opt/alt/alt-nodejs22/root/usr/bin; do
-        if [[ -x "$node_bin/node" ]] && PATH="$node_bin:$PATH" node_works; then
-            export PATH="$node_bin:$PATH"
-            break
-        fi
-    done
-fi
-if ! node_works; then
-    node_version=v24.22.1
-    node_dist="node-$node_version-linux-x64"
-    if [[ ! -x "$tools/$node_dist/bin/node" ]]; then
-        printf 'Installing Node.js in the hosting account.\n'
-        [[ $(uname -m) == x86_64 ]]
-        node_url="https://nodejs.org/dist/$node_version"
-        fetch -o "$stage/$node_dist.tar.xz" "$node_url/$node_dist.tar.xz"
-        fetch -o "$stage/SHASUMS256.txt" "$node_url/SHASUMS256.txt"
-        (cd "$stage"; awk -v file="$node_dist.tar.xz" '$2 == file {print}' SHASUMS256.txt | sha256sum --check --status)
-        tar -xJf "$stage/$node_dist.tar.xz" -C "$tools"
-    fi
-    export PATH="$tools/$node_dist/bin:$PATH"
-fi
-printf 'Building the production assets with Node %s.\n' "$(node --version)"
-npm ci --prefer-offline --ignore-scripts --no-audit --no-fund
-RAYON_NUM_THREADS=1 NODE_USE_ENV_PROXY=1 npm run build
+printf 'Installing the prebuilt assets for %s.\n' "$commit"
+tr -d '\r' <"$private/build-0b31c50.b64.txt" | tr '_-' '/+' | base64 --decode >"$stage/build-assets.tar.gz"
+printf '%s  %s\n' 85282fffe388ae4965907a0d51816aca8631268ebe5633d20e7908fb59bdd6fa "$stage/build-assets.tar.gz" |
+    sha256sum --check --status
+tar -xzf "$stage/build-assets.tar.gz" -C "$release/public"
 [[ -s public/build/manifest.json && -s public/build/fonts-manifest.json ]]
 
 mysql_api() {
@@ -164,10 +156,16 @@ fi
 unset db_password app_key
 mysql_api set_privileges_on_database user="$db" database="$db" privileges='ALL PRIVILEGES' >/dev/null
 
-ln -s "$private/.env" .env
-mv storage/app/public storage/app/public-template
-ln -s "$site/media" storage/app/public
-ln -s "$site/media" public/storage
+if [[ ! -L .env ]]; then
+    ln -s "$private/.env" .env
+fi
+if [[ ! -L storage/app/public ]]; then
+    mv storage/app/public storage/app/public-template
+    ln -s "$site/media" storage/app/public
+fi
+if [[ ! -L public/storage ]]; then
+    ln -s "$site/media" public/storage
+fi
 "$php" artisan migrate --force --no-interaction
 "$php" artisan db:seed --force --no-interaction
 "$php" artisan optimize --no-interaction
