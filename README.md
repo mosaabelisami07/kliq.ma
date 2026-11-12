@@ -149,3 +149,4 @@ After any later `.env` change, run `php artisan optimize` again.
 # kliq.ma
 # kliq.ma
 # kliq.ma
+# kliq.ma
