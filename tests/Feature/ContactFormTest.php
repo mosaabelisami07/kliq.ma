@@ -12,8 +12,12 @@ use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
+use Symfony\Component\Mailer\Exception\TransportException;
+use Symfony\Component\Mailer\SentMessage;
+use Symfony\Component\Mailer\Transport\AbstractTransport;
 use Tests\TestCase;
 
 class ContactFormTest extends TestCase
@@ -38,6 +42,28 @@ class ContactFormTest extends TestCase
             'form_token' => (string) Str::uuid(),
             ...$overrides,
         ];
+    }
+
+    /**
+     * Make every email fail the way an SMTP server rejecting the login does.
+     */
+    private function makeMailFail(): void
+    {
+        Mail::extend('failing', fn () => new class extends AbstractTransport
+        {
+            protected function doSend(SentMessage $message): void
+            {
+                throw new TransportException('Expected response code "235" but got code "535".');
+            }
+
+            public function __toString(): string
+            {
+                return 'failing://';
+            }
+        });
+
+        config(['mail.mailers.failing' => ['transport' => 'failing'], 'mail.default' => 'failing']);
+        app(SiteSettings::class)->save(['notification_email' => 'team@example.test', 'notify_on_inquiry' => true]);
     }
 
     public function test_an_inquiry_is_saved_and_the_visitor_sees_a_confirmation(): void
@@ -92,6 +118,140 @@ class ContactFormTest extends TestCase
         $this->assertStringContainsString('Second paragraph &lt;script&gt;', $html);
         $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
         $this->assertSame(40, substr_count($html, 'We need a full launch campaign.'));
+    }
+
+    public function test_the_email_is_marked_as_sent_once_the_mail_server_accepts_it(): void
+    {
+        app(SiteSettings::class)->save(['notification_email' => 'team@example.test', 'notify_on_inquiry' => true]);
+
+        $this->postJson('/en/contact', $this->payload())->assertCreated();
+
+        $this->assertNotNull(Inquiry::query()->sole()->notified_at);
+    }
+
+    public function test_the_email_contains_every_customer_detail(): void
+    {
+        $service = Service::factory()->create(['title' => ['en' => 'Branding']]);
+        $inquiry = Inquiry::factory()->create([
+            'name' => 'Amina Benali',
+            'company' => 'Atlas Tea',
+            'email' => 'amina@example.com',
+            'phone' => '+212 600 11 22 33',
+            'service_id' => $service->id,
+            'message' => 'We are launching a new brand of Moroccan tea this spring.',
+        ]);
+
+        $mail = (new NewInquiryReceived($inquiry))->toMail(new AnonymousNotifiable);
+        $html = (string) $mail->render();
+
+        $this->assertSame('New inquiry from Amina Benali (Atlas Tea)', $mail->subject);
+        $this->assertSame([['amina@example.com', 'Amina Benali']], $mail->replyTo);
+
+        foreach (['Full name', 'Amina Benali', 'Business / company', 'Atlas Tea', 'Email address', 'amina@example.com', 'Phone number', '+212 600 11 22 33', 'Service of interest', 'Branding', 'Project details', 'We are launching a new brand of Moroccan tea this spring.'] as $text) {
+            $this->assertStringContainsString($text, $html);
+        }
+    }
+
+    public function test_a_mail_failure_shows_an_error_instead_of_the_confirmation(): void
+    {
+        $this->makeMailFail();
+
+        $this->postJson('/en/contact', $this->payload())
+            ->assertServiceUnavailable()
+            ->assertJsonPath('errors.form.0', __('site.contact.errors.mail_failed'));
+
+        $inquiry = Inquiry::query()->sole();
+        $this->assertNull($inquiry->notified_at);
+    }
+
+    public function test_a_mail_failure_without_javascript_returns_to_the_form_with_an_error(): void
+    {
+        $this->makeMailFail();
+
+        $this->from('/fr')
+            ->post('/fr/contact', $this->payload())
+            ->assertRedirect('/fr')
+            ->assertSessionHasErrors(['form' => __('site.contact.errors.mail_failed', [], 'fr')])
+            ->assertSessionMissing('inquiry_sent');
+
+        $this->assertDatabaseCount('inquiries', 1);
+    }
+
+    public function test_sending_the_form_again_after_a_mail_failure_retries_the_email(): void
+    {
+        $payload = $this->payload();
+        $this->makeMailFail();
+        $this->postJson('/en/contact', $payload)->assertServiceUnavailable();
+
+        Notification::fake();
+        $this->postJson('/en/contact', $payload)->assertCreated();
+
+        Notification::assertSentOnDemandTimes(NewInquiryReceived::class, 1);
+        $this->assertDatabaseCount('inquiries', 1);
+        $this->assertNotNull(Inquiry::query()->sole()->notified_at);
+    }
+
+    public function test_a_duplicate_submission_does_not_email_twice(): void
+    {
+        Notification::fake();
+        app(SiteSettings::class)->save(['notification_email' => 'team@example.test', 'notify_on_inquiry' => true]);
+        $payload = $this->payload();
+
+        $this->postJson('/en/contact', $payload)->assertCreated();
+        $this->postJson('/en/contact', $payload)->assertCreated();
+
+        Notification::assertSentOnDemandTimes(NewInquiryReceived::class, 1);
+    }
+
+    public function test_with_emailjs_delivery_the_server_saves_the_inquiry_without_sending_mail(): void
+    {
+        Notification::fake();
+        config(['kliq.email_delivery' => 'emailjs']);
+        app(SiteSettings::class)->save(['notification_email' => 'team@example.test', 'notify_on_inquiry' => true]);
+
+        $this->postJson('/en/contact', $this->payload())->assertCreated();
+
+        Notification::assertNothingSent();
+        $this->assertDatabaseCount('inquiries', 1);
+    }
+
+    public function test_the_emailjs_script_is_only_loaded_when_emailjs_delivery_is_enabled(): void
+    {
+        $this->get('/en')->assertOk()->assertDontSee('js/email.js');
+
+        config(['kliq.email_delivery' => 'emailjs']);
+
+        $this->get('/en')->assertOk()->assertSee(asset('js/email.js'), false);
+    }
+
+    public function test_with_whatsapp_delivery_the_page_loads_the_whatsapp_script_with_the_number(): void
+    {
+        config(['kliq.email_delivery' => 'whatsapp', 'kliq.whatsapp_number' => '+212 763-801925']);
+
+        $this->get('/en')
+            ->assertOk()
+            ->assertSee('<script src="'.asset('js/whatsapp.js').'" data-number="212763801925" defer></script>', false)
+            ->assertDontSee('js/email.js');
+    }
+
+    public function test_with_whatsapp_delivery_the_server_saves_the_inquiry_without_sending_mail(): void
+    {
+        Notification::fake();
+        config(['kliq.email_delivery' => 'whatsapp']);
+        app(SiteSettings::class)->save(['notification_email' => 'team@example.test', 'notify_on_inquiry' => true]);
+
+        $this->postJson('/en/contact', $this->payload())->assertCreated();
+
+        Notification::assertNothingSent();
+        $this->assertDatabaseCount('inquiries', 1);
+    }
+
+    public function test_the_form_carries_translated_client_side_validation_messages(): void
+    {
+        $this->get('/fr')
+            ->assertOk()
+            ->assertSee('data-validation=', false)
+            ->assertSee(e(json_encode(__('site.contact.errors.email_invalid', [], 'fr'), JSON_UNESCAPED_UNICODE)), false);
     }
 
     public function test_no_email_is_sent_when_notifications_are_disabled(): void

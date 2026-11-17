@@ -63,6 +63,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Inquiry email delivery
+    |--------------------------------------------------------------------------
+    |
+    | How the agency receives each contact form submission:
+    | "whatsapp" (default): WhatsApp opens on the visitor's device with the
+    | details filled in, addressed to KLIQ_WHATSAPP_NUMBER (public/js/whatsapp.js).
+    | "emailjs": the visitor's browser sends an email through EmailJS,
+    | configured in public/js/email.js.
+    | "laravel": the server emails it through Laravel Mail (SMTP).
+    | With "whatsapp" and "emailjs" the server sends nothing; it only
+    | validates the inquiry and saves it for the dashboard.
+    |
+    */
+
+    'email_delivery' => env('KLIQ_EMAIL_DELIVERY', 'whatsapp'),
+
+    'whatsapp_number' => env('KLIQ_WHATSAPP_NUMBER'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Contact form options
     |--------------------------------------------------------------------------
     */

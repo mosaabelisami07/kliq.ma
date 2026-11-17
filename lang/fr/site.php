@@ -142,6 +142,7 @@ return [
             'too_fast' => 'C’était rapide ! Patientez quelques secondes puis renvoyez.',
             'throttled' => 'Trop de messages en peu de temps. Réessayez dans quelques minutes.',
             'generic' => 'Une erreur est survenue. Merci de réessayer.',
+            'mail_failed' => 'Désolé, votre message n’a pas pu être envoyé pour le moment. Merci de réessayer dans quelques minutes, ou de nous contacter directement par e-mail ou par téléphone.',
             'summary' => 'Merci de vérifier les champs signalés.',
         ],
     ],

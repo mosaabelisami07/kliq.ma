@@ -1,6 +1,54 @@
 /**
+ * Client-side validation, run before anything is sent. Returns errors keyed by
+ * field name ({ email: ['…'] }) in the page's language: the messages come from
+ * the form's data-validation attribute (lang/xx/site.php).
+ */
+function validateContactForm(form) {
+    let messages = {};
+
+    try {
+        messages = JSON.parse(form.dataset.validation || '{}');
+    } catch {
+        console.error('[Contact] The contact form data-validation attribute is not valid JSON.');
+    }
+
+    const data = new FormData(form);
+    const value = (name) => String(data.get(name) ?? '').trim();
+    const errors = {};
+    const fail = (field, key, fallback) => {
+        errors[field] ??= [messages[key] ?? fallback];
+    };
+
+    if (!value('name')) {
+        fail('name', 'name_required', 'Please enter your name.');
+    }
+
+    if (!value('email')) {
+        fail('email', 'email_required', 'Please enter your email address.');
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value('email'))) {
+        fail('email', 'email_invalid', 'Please enter a valid email address.');
+    }
+
+    if (value('phone') && !/^\+?[\d\s().-]{6,25}$/.test(value('phone'))) {
+        fail('phone', 'phone_invalid', 'Please enter a valid phone number.');
+    }
+
+    if (!value('message')) {
+        fail('message', 'message_required', 'Please enter a message.');
+    } else if (value('message').length < 20) {
+        fail('message', 'message_min', 'Please write at least 20 characters.');
+    }
+
+    return errors;
+}
+
+/**
  * Sends the contact form with fetch(): loading state, inline validation
  * errors and a success panel. Without JavaScript the form posts normally.
+ *
+ * Delivery to the agency, depending on KLIQ_EMAIL_DELIVERY in .env:
+ * "whatsapp" opens WhatsApp with the details filled in (public/js/whatsapp.js),
+ * "emailjs" emails them through EmailJS (public/js/email.js).
  */
 export function initContactForm() {
     const container = document.querySelector('[data-contact]');
@@ -62,6 +110,24 @@ export function initContactForm() {
         }
 
         clearErrors();
+
+        // Nothing is sent while a field is invalid.
+        const invalid = validateContactForm(form);
+
+        if (Object.keys(invalid).length) {
+            showErrors(invalid, alert.dataset.summary);
+
+            return;
+        }
+
+        // WhatsApp delivery: open the chat now, while the browser still treats
+        // this as the visitor's click (after an await it would be blocked).
+        if (window.KliqWhatsApp && !window.KliqWhatsApp.open(form)) {
+            showErrors({}, form.dataset.failed);
+
+            return;
+        }
+
         setBusy(true);
 
         try {
@@ -74,6 +140,19 @@ export function initContactForm() {
             const data = await response.json().catch(() => ({}));
 
             if (response.ok) {
+                // EmailJS delivery (public/js/email.js), when enabled: the
+                // confirmation only shows once the email has really been sent.
+                if (window.KliqEmail) {
+                    try {
+                        await window.KliqEmail.send(form);
+                    } catch (error) {
+                        console.error('[EmailJS]', error);
+                        showErrors({}, form.dataset.emailFailed ?? form.dataset.failed);
+
+                        return;
+                    }
+                }
+
                 container.querySelector('[data-contact-success-title]').textContent = data.title;
                 container.querySelector('[data-contact-success-text]').textContent = data.message;
                 form.hidden = true;
@@ -87,7 +166,7 @@ export function initContactForm() {
             if (response.status === 422) {
                 showErrors(data.errors ?? {}, alert.dataset.summary);
             } else {
-                showErrors({}, response.status === 429 ? form.dataset.throttled : form.dataset.failed);
+                showErrors(data.errors ?? {}, response.status === 429 ? form.dataset.throttled : form.dataset.failed);
             }
         } catch {
             showErrors({}, form.dataset.failed);

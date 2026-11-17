@@ -6,7 +6,6 @@ use App\Models\Inquiry;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Support\HtmlString;
 
 class NewInquiryReceived extends Notification
 {
@@ -28,23 +27,16 @@ class NewInquiryReceived extends Notification
     }
 
     /**
-     * Get the mail representation of the notification.
+     * Get the mail representation of the notification, with every detail the
+     * visitor submitted (see resources/views/mail/new-inquiry.blade.php).
      */
     public function toMail(object $notifiable): MailMessage
     {
         $inquiry = $this->inquiry;
 
         return (new MailMessage)
-            ->subject("New inquiry from {$inquiry->name}")
+            ->subject('New inquiry from '.$inquiry->name.($inquiry->company ? " ({$inquiry->company})" : ''))
             ->replyTo($inquiry->email, $inquiry->name)
-            ->greeting('New website inquiry')
-            ->line("**From:** {$inquiry->name}".($inquiry->company ? " ({$inquiry->company})" : ''))
-            ->line("**Email:** {$inquiry->email}")
-            ->lineIf(filled($inquiry->phone), "**Phone:** {$inquiry->phone}")
-            ->lineIf(filled($inquiry->service_name), "**Service:** {$inquiry->service_name}")
-            ->line('**Message:**')
-            ->line(new HtmlString(nl2br(e($inquiry->message), false)))
-            ->action('Open in dashboard', route('admin.inquiries.show', $inquiry))
-            ->salutation('— KLIQ website');
+            ->markdown('mail.new-inquiry', ['inquiry' => $inquiry]);
     }
 }

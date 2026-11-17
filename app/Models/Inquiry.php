@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'service_id', 'service_name', 'name', 'company', 'email', 'phone', 'budget',
     'preferred_contact', 'message', 'status', 'notes', 'locale', 'submission_token',
-    'ip_address', 'user_agent', 'read_at',
+    'ip_address', 'user_agent', 'read_at', 'notified_at',
 ])]
 #[Hidden(['notes', 'submission_token', 'ip_address', 'user_agent'])]
 class Inquiry extends Model
@@ -95,6 +95,7 @@ class Inquiry extends Model
         return [
             'status' => InquiryStatus::class,
             'read_at' => 'datetime',
+            'notified_at' => 'datetime',
         ];
     }
 }

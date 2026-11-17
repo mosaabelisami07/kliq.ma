@@ -90,6 +90,11 @@
 
     @fonts
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @if (config('kliq.email_delivery') === 'whatsapp')
+        <script src="{{ asset('js/whatsapp.js') }}" data-number="{{ preg_replace('/\D/', '', (string) config('kliq.whatsapp_number')) }}" defer></script>
+    @elseif (config('kliq.email_delivery') === 'emailjs')
+        <script src="{{ asset('js/email.js') }}" defer></script>
+    @endif
 </head>
 <body class="bg-paper font-sans text-ink antialiased" id="top">
     <a href="#main" class="sr-only z-[300] rounded-full bg-orange px-5 py-3 font-semibold text-black focus:not-sr-only focus:fixed focus:start-4 focus:top-4">

@@ -31,6 +31,8 @@
         data-contact-form
         data-throttled="{{ __('site.contact.errors.throttled') }}"
         data-failed="{{ __('site.contact.errors.generic') }}"
+        data-email-failed="{{ __('site.contact.errors.mail_failed') }}"
+        data-validation="{{ json_encode(Arr::only(__('site.contact.errors'), ['name_required', 'email_required', 'email_invalid', 'phone_invalid', 'message_required', 'message_min']), JSON_UNESCAPED_UNICODE) }}"
         @if ($sent) hidden @endif
     >
         @csrf

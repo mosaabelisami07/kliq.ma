@@ -142,6 +142,7 @@ return [
             'too_fast' => 'That was quick! Please wait a few seconds and send again.',
             'throttled' => 'Too many messages in a short time. Please try again in a few minutes.',
             'generic' => 'Something went wrong. Please try again.',
+            'mail_failed' => 'Sorry, your message could not be sent right now. Please try again in a few minutes, or contact us directly by email or phone.',
             'summary' => 'Please check the highlighted fields.',
         ],
     ],
